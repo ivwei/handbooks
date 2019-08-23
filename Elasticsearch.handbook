@@ -1,0 +1,201 @@
+线上部署了ELK+Redis日志分析平台环境, 随着各类日志数据源源不断的收集, 发现过了一段时间之后, ELK查看会原来越慢, 重启elasticsearch服务器节点之前同步时间也会很长,  这是因为长期以来ELK收集的索引没有删除引起的! 以下是ELK批量删除索引的操作记录:
+
+1) 访问head插件(http://10.0.8.44:9200/_plugin/head/) 或者在elasticsearch节点上使用下面命令查看elk的索引(10.0.8.44是elk集群中的任意一个节点)
+
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.44:9200/_cat/shards'              
+ 
+删除索引的命令
+[root@elk-node01 ~]# curl -XDELETE  http://10.0.8.44:9200/索引名
+ 
+还可以根据需求,过滤出想要查看的索引,比如查看2018.08.02并且是10.0.52.22的索引
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.44:9200/_cat/shards'  |grep "2018\.08\.02" |grep "10.0.52.22"|awk '{print $1}'
+2) 可以先将要删除的索引查看出来存到临时文件里, 然后进行批量删除 (索引多的话, 删除操作会耗费一点时间) 
+
+比如批量删除所有的索引(但不会删除kibana.yml文件中配置的kibana.index索引,就是那些带.的索引) (cat /root/elk-index.tmp|wc -l 可以查看要删除的索引有多少个)
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.44:9200/_cat/shards'|awk '{print $1}'|uniq > /root/elk-index.tmp
+[root@elk-node01 ~]# for i in $(cat /root/elk-index.tmp);do curl -XDELETE  http://10.0.8.44:9200/$i;done
+3) 为了方便可以在计划任务里面加定时任务删除30天之前的日志索引  (这里线上elk的索引名中带当天的日期, 日期格式为%Y.%m.%d.  具体看自己的索引命名规则)
+
+[root@elk-node01 ~]# vim /home/scripts/del_elasticseatch_index.sh
+#!/bin/bash
+#The index 30 days ago
+curl -XGET 'http://10.0.8.44:9200/_cat/shards' |awk '{print $1}' |grep `date -d "30 days ago" +%Y.%m.%d` |uniq > /tmp/index_name.tmp
+ 
+for index_name in `cat /tmp/index_name.tmp` 
+do
+    curl -XDELETE  http://10.0.8.44:9200/$index_name
+    echo "${index_name} delete success" >> /home/scripts/del_elasticseatch_index.log
+done
+ 
+[root@elk-node01 ~]# crontab -l
+0 3 * * * bash /home/scripts/del_elasticseatch_index.sh
+上述脚本执行之后, 访问http://10.0.8.44:9200/_plugin/head/ ,就会发现,ELK索引已被批量删除了.
+
+====================================ES集群节点切换=======================================
+在ELK集群中任意节点上查看集群状态(10.0.8.44是任意一个节点地址).
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.44:9200/_cat/health?v'
+epoch      timestamp cluster  status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1542781206 14:20:06  kevin-elk green           3         3      6   3    0    0        0             0                  -                100.0%
+  
+ELK集群健康检查的三种状态:
+green： 每个索引的primary shard和replica shard都是active状态的
+yellow：每个索引的primary shard都是active状态的，但是部分replica shard不是active状态，处于不可用的状态
+red：   不是所有索引的primary shard都是active状态的，部分索引有数据丢失了
+  
+其中 yellow 表示所有主分片可用，但不是所有副本分片都可用，最常见的情景是单节点时，由于es默认是有1个副本，主分片和副本不能在同一个节点上，所以副本就是未分配unassigned
+  
+分配分片时可能遇到的坑，需要注意的地方:
+1) 分配副本时必须要带参数"allow_primary" : true, 不然会报错
+2) 当集群中es版本不同时，如果这个未分配的分片是高版本生成的，不能分配到低版本节点上，反过来低版本的分片可以分配给高版本，如果遇到了，只要升级低版本节点的ES版本即可
+  
+*符号表示该节点为当前主节点.
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.45:9200/_cat/nodes?v'
+host      ip        heap.percent ram.percent load node.role master name                      
+10.0.8.44 10.0.8.44           53          22 0.03 d         m      elk-node01.kevinbo.cn
+10.0.8.47 10.0.8.47           39          54 0.03 d         m      elk-node03.kevinbo.cn
+10.0.8.45 10.0.8.45           42          20 0.00 d         *      elk-node02.kevinbo.cn
+  
+如果当上面的主节点(10.0.8.45)出现故障,比如宕机,es服务挂掉或重启, 则主节点会转移到其他的两个从节点中的一个上面.
+在主节点转移过程中, 分片也会转移过去, 如果分片比较多, 数据量比较大, 则需要耗费一定的时间, 在此过程中, elk集群的状态是yellow.
+具体表现:
+[root@elk-node01 plugins]#  curl -XGET 'http://10.0.8.44:9200/_cat/health?v'
+epoch      timestamp cluster  status node.total node.data shards  pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1542769559 11:05:59  kevin-elk yellow          3         3   2560 1898    0    4     1232             8            829.4ms                 67.4%
+  
+[root@elk-node01 plugins]#  curl -XGET 'http://10.0.8.44:9200/_cat/health?v'
+epoch      timestamp cluster  status node.total node.data shards  pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1542769632 11:07:12  kevin-elk yellow          3         3   3074 1898    0    4      718             0                  -                 81.0%
+  
+[root@elk-node01 plugins]#  curl -XGET 'http://10.0.8.44:9200/_cat/health?v'
+epoch      timestamp cluster  status node.total node.data shards  pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1542769637 11:07:17  kevin-elk yellow          3         3   3111 1898    0    4      681             4              221ms                 82.0%
+  
+...............
+...............
+...............
+[root@elk-node01 plugins]#  curl -XGET 'http://10.0.8.44:9200/_cat/health?v'
+epoch      timestamp cluster  status node.total node.data shards  pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1542769761 11:09:21  kevin-elk green           3         3   3796 1898    0    0        0             0                  -                100.0%
+  
+如上会发现, 在主节点发生变动, 分片转移过程中, 查看elk集群状态, shards分片会不断增加, unassign会不断减少,直至unassign减到0时, 表明分片已经完全转移到新的
+主节点上, 则此时查看elk的健康状态就是green了. 
+  
+在分片转移过程中, 访问http://10.0.8.44:9200/_plugin/head/ 插件界面, 也会看到yellow状态值,并且后面的分片数会不断增加中.
+====================================ES集群相关维护命令====================================
+
+
+1) 查询elasticsearch集群信息（下面命令在任意一个节点机器上操作都可以）
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.45:9200/_cat/nodes'  
+10.0.8.44 10.0.8.44 54 22 0.00 d m elk-node01.kevinbo.cn
+10.0.8.47 10.0.8.47 38 54 0.00 d m elk-node03.kevinbo.cn
+10.0.8.45 10.0.8.45 39 20 0.00 d * elk-node02.kevinbo.cn
+   
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.45:9200/_cat/nodes?v'
+host      ip        heap.percent ram.percent load node.role master name                     
+10.0.8.44 10.0.8.44           54          22 0.00 d         m      elk-node01.kevinbo.cn
+10.0.8.47 10.0.8.47           38          54 0.00 d         m      elk-node03.kevinbo.cn
+10.0.8.45 10.0.8.45           39          20 0.00 d         *       elk-node02.kevinbo.cn
+   
+2) 查询集群中的master
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.45:9200/_cluster/state/master_node?pretty'  
+{
+  "cluster_name" : "kevin-elk",
+  "master_node" : "1dL42NBYSL6mG9pg_ZUg-Q"
+}
+   
+或者
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.45:9200/_cat/master?v'   
+id                                            host         ip            node                     
+1dL42NBYSL6mG9pg_ZUg-Q 10.0.8.45 10.0.8.45 elk-node02.kevinbo.cn
+   
+3) 查询集群状态方法
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.45:9200/_cluster/state/nodes?pretty'  
+{
+  "cluster_name" : "kevin-elk",
+  "nodes" : {
+    "3Nw9dTQ5Qkmb-HW18kojeA" : {
+      "name" : "elk-node01.kevinbo.cn",
+      "transport_address" : "10.0.8.44:9300",
+      "attributes" : { }
+    },
+    "wKrnuaSaQYic_r4jKIzPWQ" : {
+      "name" : "elk-node03.kevinbo.cn",
+      "transport_address" : "10.0.8.47:9300",
+      "attributes" : { }
+    },
+    "1dL42NBYSL6mG9pg_ZUg-Q" : {
+      "name" : "elk-node02.kevinbo.cn",
+      "transport_address" : "10.0.8.45:9300",
+      "attributes" : { }
+    }
+  }
+}
+   
+4) 查询集群的健康状态
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.44:9200/_cat/health?v'  
+epoch      timestamp cluster  status node.total node.data shards pri relo init unassign pending_tasks max_task_wait_time active_shards_percent
+1542784475 15:14:35  kevin-elk green           3         3      6   3    0    0        0             0                  -                100.0%
+   
+或者
+[root@elk-node01 ~]# curl -XGET 'http://10.0.8.44:9200/_cluster/health?pretty'  
+{
+  "cluster_name" : "kevin-elk",
+  "status" : "green",
+  "timed_out" : false,
+  "number_of_nodes" : 3,
+  "number_of_data_nodes" : 3,
+  "active_primary_shards" : 3,
+  "active_shards" : 6,
+  "relocating_shards" : 0,
+  "initializing_shards" : 0,
+  "unassigned_shards" : 0,
+  "delayed_unassigned_shards" : 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch" : 0,
+  "task_max_waiting_in_queue_millis" : 0,
+  "active_shards_percent_as_number" : 100.0
+}
+   
+5) 查询集群索引
+[root@elk-node01 ~]# curl -XGET   "http://10.0.8.44:9200/_cat/shards"  
+.cx-kibana  0 r STARTED 1 3.1kb 10.0.8.44 elk-node01.kevinbo.cn
+.cx-kibana  0 p STARTED 1 3.1kb 10.0.8.45 elk-node02.kevinbo.cn
+.ops-kibana 0 p STARTED 1 3.1kb 10.0.8.47 elk-node03.kevinbo.cn
+.ops-kibana 0 r STARTED 1 3.1kb 10.0.8.45 elk-node02.kevinbo.cn
+.nc-kibana  0 p STARTED 1 3.1kb 10.0.8.44 elk-node01.kevinbo.cn
+.nc-kibana  0 r STARTED 1 3.1kb 10.0.8.47 elk-node03.kevinbo.cn
+   
+6) 查询集群索引状态
+[root@elk-node01 ~]# curl -XGET   "http://10.0.8.44:9200/_cat/indices?v"
+health status index       pri rep docs.count docs.deleted store.size pri.store.size
+green  open   .nc-kibana    1   1          1            0      6.3kb          3.1kb
+green  open   .cx-kibana    1   1          1            0      6.3kb          3.1kb
+green  open   .ops-kibana   1   1          1            0      6.3kb          3.1kb
+   
+7) 关闭或打开某个索引
+比如关闭.ops-kibana索引
+[root@elk-node01 ~]# curl -XPOST "http://10.0.8.44:9200/.ops-kibana/_close"
+{"acknowledged":true}
+   
+[root@elk-node01 ~]# curl -XGET   "http://10.0.8.44:9200/_cat/indices?v"
+health status index       pri rep docs.count docs.deleted store.size pri.store.size
+green  open   .nc-kibana    1   1          1            0      6.3kb          3.1kb
+green  open   .cx-kibana    1   1          1            0      6.3kb          3.1kb
+       close  .ops-kibana  
+   
+再次打开.ops-kibana索引
+   
+[root@elk-node01 ~]# curl -XPOST "http://10.0.8.44:9200/.ops-kibana/_open"
+{"acknowledged":true}
+   
+[root@elk-node01 ~]# curl -XGET   "http://10.0.8.44:9200/_cat/indices?v"
+health status index       pri rep docs.count docs.deleted store.size pri.store.size
+green  open   .nc-kibana    1   1          1            0      6.3kb          3.1kb
+green  open   .cx-kibana    1   1          1            0      6.3kb          3.1kb
+green  open   .ops-kibana   1   1          1            0      6.3kb          3.1kb
+   
+8) 删除索引
+# curl -XDELETE  http://10.0.8.44:9200/索引名
+
+REF AND Thanks:
+https://www.cnblogs.com/kevingrace/p/9994178.html
