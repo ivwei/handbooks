@@ -1,0 +1,34 @@
+【Nginx升级及编译安装场景问题解决汇总】
+./configure: error: the HTTP gzip module requires the zlib library.
+You can either disable the module by using --without-http_gzip_module
+option, or install the zlib library into the system, or build the zlib library
+statically from the source with nginx by using --with-zlib=<path> option.
+$ apt install libzip-dev
+
+
+./configure: error: the HTTP rewrite module requires the PCRE library.
+You can either disable the module by using --without-http_rewrite_module
+option, or install the PCRE library into the system, or build the PCRE library
+statically from the source with nginx by using --with-pcre=<path> option
+$  apt-get install libpcre3 libpcre3-dev
+
+
+./configure: error: SSL modules require the OpenSSL library.
+You can either do not enable the modules, or install the OpenSSL library
+into the system, or build the OpenSSL library statically from the source
+with nginx by using --with-openssl=<path> option
+$  apt-get install libssl-dev
+
+
+./configure: error: the HTTP XSLT module requires the libxml2/libxslt
+libraries. You can either do not enable the module or install the libraries.
+$  apt-get install libxslt-dev
+
+./configure: error: the HTTP image filter module requires the GD library.
+You can either do not enable the module or install the libraries
+$  apt install libgd2-dev
+
+
+./configure: error: the GeoIP module requires the GeoIP library.
+You can either do not enable the module or install the library.
+$  apt-get install libgeoip-dev
