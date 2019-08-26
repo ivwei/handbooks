@@ -32,3 +32,11 @@ $  apt install libgd2-dev
 ./configure: error: the GeoIP module requires the GeoIP library.
 You can either do not enable the module or install the library.
 $  apt-get install libgeoip-dev
+
+【nginx的几种信号】
+TERM,INT 快速关闭
+QUIT 从容关闭
+HUP 平滑重启，重新加载配置文件
+USR1 重新打开日志文件，在切割日志时用途较大
+USR2 平滑升级可执行程序
+WINCH 从容关闭工作进程
