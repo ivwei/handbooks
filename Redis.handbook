@@ -1,0 +1,24 @@
+【redis安装】
+Redis 3.2.10
+通过Redis官网下载源码包安装
+$ # 安装依赖
+$ sudo apt-get install build-essential tcl
+$ # 下载源码包
+$ wget http://download.redis.io/releases/redis-3.2.10.tar.gz
+$ # 解压
+$ tar -xf redis-3.2.10.tar.gz
+$ cd redis-3.2.10
+$ # 编译
+$ make
+$ # 测试
+$ make test
+$ # 安装
+$ sudo make install
+$ # 安装服务。执行脚本按提示操作即可。
+$ cd utils
+$ sudo ./install_server.sh
+
+【redis-dump安装】
+安装ruby和依赖，然后安装redis-dump
+apt-get install ruby ruby-dev gcc
+gem install redis-dump
