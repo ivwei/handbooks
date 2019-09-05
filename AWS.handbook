@@ -8,3 +8,7 @@ export EC2_REGION=$region_name
 #custom_cloudwatch
 aws cloudwatch put-metric-data --region $region_name --metric-name IO_WAIT --dimensions Instance=${Instance_Id}  --namespace "Custom" --value $IO_WAIT
 aws cloudwatch put-metric-data --region $region_name --metric-name Inum_UsedPercent_$i --dimensions Instance=${Instance_Id}  --namespace "Custom" --value $Inum_UsedPercent
+
+#AWS urls
+aws knowledge
+https://amazonaws-china.com/cn/premiumsupport/knowledge-center/
