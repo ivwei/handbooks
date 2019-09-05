@@ -1,0 +1,30 @@
+【phd】
+phabricator后台提供了几个守护进程用来做后台任务处理：
+
+PhabricatorTaskmasterDaemon：执行任务队列里面的任务
+PhabricatorRepositoryPullLocalDaemon：追踪代码仓库的进程
+PhabricatorTriggerDaemon：事件触发调度，清理旧日志和缓存
+可以通过 ./bin/phd help 对管理守护进程
+
+常用的命令：
+
+./bin/phd stop: 关闭守护进程；
+./bin/phd start: 开启守护进程；
+./bin/phd restart: 重启守护进程；
+./bin/phd status：查看正在运行的守护经常的状态；
+
+
+【mail】
+cd  /data/phabricator
+./bin/mail send-test --to test@ur.mail.com --subject ivvei < README.md
+./bin/mail list-outbound
+
+
+Sent表示发送成功
+queued表示仍在排队，可能是在等待发送，也可能是后台进程运行不正常，此时应该尝试重启，甚至多次重启后台守护进程。
+每条记录可以使用./mail show-outbound --id id-value命令查看邮件的详细内容
+./bin/mail show-outbound --id  139480
+
+
+./bin/phd restart
+tailf /var/tmp/phd/log/daemons.log
