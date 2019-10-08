@@ -1,0 +1,35 @@
+
+Ubuntu18安装mongo4.0.12
+lsb_release -dc
+Description:	Ubuntu 18.04.3 LTS
+Codename:	bionic
+
+
+
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 9DA31620334BD75D9DCB49F368818C72E52529D4
+
+echo "deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu bionic/mongodb-org/4.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-4.0.list 
+
+cat  /etc/apt/sources.list.d/mongodb-org-4.0.list
+deb [ arch=amd64 ] https://repo.mongodb.org/apt/ubuntu bionic/mongodb-org/4.0 multiverse
+
+
+apt-get update
+apt-get install -y mongodb-org
+service mongod restart
+service mongod status
+
+
+
+干净卸载mongo
+service mongod stop
+apt-cache search mongo
+apt-get purge mongo-org*
+rm -r /var/lib/mongo
+rm -r /var/log/mongo
+
+
+REF:
+https://docs.mongodb.com/manual/tutorial/install-mongodb-on-ubuntu/#uninstall-mongodb-community-edition
+
+
