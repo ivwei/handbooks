@@ -7,14 +7,14 @@ sudo chown mysql.mysql  /var/run/mysqld
 sudo  mysqld_safe --skip-grant-tables &
 mysql -uroot -p会车直接进入mysql
 use mysql
-update mysql.user set authentication_string=password("phsUbF33mm1f0M1WxrWk8w") where user="root”;
+update mysql.user set authentication_string=password("password1") where user="root”;
 5.7重置密码，root localhost登陆：
-update mysql.user set  authentication_string=password("phsUbF33mm1f0M1WxrWk8w"),plugin='mysql_native_password' where user="root"; 
+update mysql.user set  authentication_string=password("password1"),plugin='mysql_native_password' where user="root"; 
 mysql> flush privileges;
 mysql> quit;
-sudo mysql -uroot -pphsUbF33mm1f0M1WxrWk8w
-phsUbF33mm1f0M1WxrWk8w
-20Dev1Sql16
+sudo mysql -uroot -ppassword1
+password1
+2password2
 
 
 ubuntu16.04下安装和彻底删除mysql5.7
@@ -81,7 +81,7 @@ sudo /etc/init.d/apparmor  restart
 mysql>show variables like '%dir%'; <==当显示datadir 为/data/mysql时,修改成功
 
 删库
-for i in `mysql -uroot -p20Dev1Sql16 -e"show databases;"|grep  phabricator`;do mysql -uroot -p20Dev1Sql16 -e"drop database $i”;done
+for i in `mysql -uroot -p2password2 -e"show databases;"|grep  phabricator`;do mysql -uroot -p2password2 -e"drop database $i”;done
 备库
 mysql -uroot -p -e "show databases"|grep -Ev "Database|information_schema|mysql|test|jkhw_db"|xargs mysqldump -uroot -p --databases > mysql_dump.sql
 导库
