@@ -22,3 +22,20 @@ $ sudo ./install_server.sh
 安装ruby和依赖，然后安装redis-dump
 apt-get install ruby ruby-dev gcc
 gem install redis-dump
+
+
+----------------------------latest-version-install
+Redis.handbook
+mkdir /data/install
+cd /data/install/
+ wget http://download.redis.io/releases/redis-5.0.6.tar.gz
+tar -xf redis-5.0.6.tar.gz
+cd redis-5.0.6
+ make
+ make test
+ make install
+cd utils/
+./install_server.sh
+/etc/init.d/redis_6379 start
+/etc/init.d/redis_6379 restart
+
