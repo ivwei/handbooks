@@ -1,0 +1,162 @@
+@20181017
+mysql5.7重置root密码
+sudo /etc/init.d/mysql stop
+sudo  mysqld_safe --skip-grant-tables &
+sudo mkdir  /var/run/mysqld
+sudo chown mysql.mysql  /var/run/mysqld
+sudo  mysqld_safe --skip-grant-tables &
+mysql -uroot -p会车直接进入mysql
+use mysql
+update mysql.user set authentication_string=password("phsUbF33mm1f0M1WxrWk8w") where user="root”;
+5.7重置密码，root localhost登陆：
+update mysql.user set  authentication_string=password("phsUbF33mm1f0M1WxrWk8w"),plugin='mysql_native_password' where user="root"; 
+mysql> flush privileges;
+mysql> quit;
+sudo mysql -uroot -pphsUbF33mm1f0M1WxrWk8w
+phsUbF33mm1f0M1WxrWk8w
+20Dev1Sql16
+
+
+ubuntu16.04下安装和彻底删除mysql5.7
+彻底删除mysql5.7
+删除mysql前 先删除一下 /var/lib/mysql 还有 /etc/mysql
+#下面命令依次执行
+sudo rm /var/lib/mysql/ -R # 删除数据库目录
+sudo rm /etc/mysql/ -R #删除启动脚本、配置文件等
+sudo apt-get autoremove mysql* --purge # 卸载mysql所有文件
+sudo apt-get remove apparmor # 这个apparmor是在装mysql-server时装上的，和安全有关
+dpkg -l |grep ^rc|awk '{print $2}' |sudo xargs dpkg -P # 清理残余mysql文件
+mysql5.7的安装
+sudo apt-get install mysql-server
+上述命令会安装以下包：
+apparmor
+mysql-client-5.7
+mysql-common
+mysql-server
+mysql-server-5.7
+mysql-server-core-5.7
+忘记root密码
+sudo mkdir -p /var/run/mysqld && sudo chown -R mysql.mysql /var/run/mysqld/ && sudo mysqld_safe --skip-grant-tables &
+查看一下user表，错误的起因就是在这里， root的plugin被修改成了auth_socket，用密码登陆的plugin应该是mysql_native_password
+select user, plugin from mysql.user;
++-----------+-----------------------+
+| user  | plugin        |
++-----------+-----------------------+
+| root   | auth_socket      |
+| mysql.sys | mysql_native_password |
+| dev    | mysql_native_password |
+mysql> update mysql.user set authentication_string=PASSWORD('newPwd'), plugin='mysql_native_password' where user='root';
+Ubuntu16 myql5.7修改数据目录 
+创建MySQL另外存储的目录
+mkdir /database/mysql
+chmod 700 /database/mysql
+chowd mysql:mysq /database/mysql
+将以前的数据库复制到新的存储目录 (这样避免了再次初始化，并且数据还在)
+sudo cp -av /var/lib/mysql/* /data/ops/mysql_data/
+sudo cp -arf /var/lib/mysql/* /data/ops/mysql_data/
+cp: cannot stat '/var/lib/mysql/*': No such file or directory
+sudo chmod -R 755 /var/lib/mysql
+ccadmin@ip-172-31-20-117:/data/install/mysql-5.5.41$ sudo cp -arf /var/lib/mysql/* /data/ops/mysql_data/
+sudo vim /etc/apparmor.d/usr.sbin.mysqld
+# Allow data dir access
+  ##/var/lib/mysql/ r,
+  ##/var/lib/mysql/** rwk,
+  /data/ops/mysql_data/ r,
+  /data/ops/mysql_data/** rwk,
+  /var/log/mysql.err rw,
+  /var/log/mysql.log rw,
+  /var/log/mysql/ r,
+  /var/log/mysql/** rw,
+
+  /data/logs/mysql/mysql.err rw,
+  /data/logs/mysql/* rw,
+修改datadir：
+sudo vim  /etc/mysql/mysql.conf.d/mysqld.cnf
+重启服务
+sudo apt-get install apparmor
+service rsyslog restart
+sudo /etc/init.d/apparmor  reload
+sudo /etc/init.d/apparmor  restart
+登录MySql并验证数据目录
+mysql>show variables like '%dir%'; <==当显示datadir 为/data/mysql时,修改成功
+
+删库
+for i in `mysql -uroot -p20Dev1Sql16 -e"show databases;"|grep  phabricator`;do mysql -uroot -p20Dev1Sql16 -e"drop database $i”;done
+备库
+mysql -uroot -p -e "show databases"|grep -Ev "Database|information_schema|mysql|test|jkhw_db"|xargs mysqldump -uroot -p --databases > mysql_dump.sql
+导库
+gunzip -c /home/ops/2.sql.gz |mysql -uroot -p
+
+Mysql5.5重置密码
+sudo /etc/init.d/mysql stop
+sudo  mysqld_safe --skip-grant-tables &
+mysql
+update mysql.user set password=PASSWORD('55555555') where user='root’;
+
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+Mysql5.7重置密码-156服务器实操版
+/etc/init.d/mysql
+vim /etc/mysql/mysql.conf.d/mysqld.cnf
+#rest password
+#skip-grant-tables
+root@xgd182:/home/user0# /etc/init.d/mysql restart
+
+mysql -u root -p
+直接回车登录进去
+
+mysql> update mysql.user set authentication_string=password("55555555") where user="root";
+Query OK, 1 row affected, 1 warning (0.01 sec)
+Rows matched: 1  Changed: 1  Warnings: 1
+flush privileges;
+quit退出，注释
+#rest password
+#skip-grant-tables
+/etc/init.d/mysql restart
+
+mysql登录-uroot -p验证测试OK
+
+
+
+
+建库授权登录
+mysql> create database coincola_test_web;
+Query OK, 1 row affected (0.00 sec)
+
+mysql> CREATE user 'coincola_test_web'@'%' IDENTIFIED BY '55555555';
+Query OK, 0 rows affected (0.09 sec)
+
+mysql> grant  all privileges on coincola_test_web.*  to coincola_test_web@'%' IDENTIFIED BY '55555555';
+Query OK, 0 rows affected, 1 warning (0.02 sec)
+
+mysql> flush privileges;
+Query OK, 0 rows affected (0.00 sec)
+
+交互信息
+database:  coincola_test_web
+host:10.18.6.156
+user: coincola_test_web
+password: 4tihHYGOnfg2019
+
+eg: mysql -ucoincola_test_web -h10.18.6.156 -p
+4tihHYGOnfg2019
+
+
+数据库规划
+mysql> create database config_center_156;
+Query OK, 1 row affected (0.00 sec)
+
+mysql> create database config_center_157;
+Query OK, 1 row affected (0.00 sec)
+
+mysql> grant  all privileges on  config_center_156.*  to coincola_test_web@'%' IDENTIFIED BY '55555555';
+Query OK, 0 rows affected, 1 warning (0.00 sec)
+
+mysql> grant  all privileges on  config_center_157.*  to coincola_test_web@'%' IDENTIFIED BY '55555555';
+Query OK, 0 rows affected, 1 warning (0.00 sec)
+
+mysql> flush privileges;
+Query OK, 0 rows affected (0.00 sec)
+
+
